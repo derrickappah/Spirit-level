@@ -1,0 +1,212 @@
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin />
+    <link
+      rel="stylesheet"
+      as="style"
+      onload="this.rel='stylesheet'"
+      href="https://fonts.googleapis.com/css2?display=swap&family=Noto+Sans:wght@400;500;700;900&family=Space+Grotesk:wght@400;500;700"
+    />
+    <title>All-in-One Level (Smooth)</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  </head>
+  <body>
+    <div
+      class="relative flex min-h-screen flex-col bg-[#101a23] items-center justify-start py-6"
+      style='font-family: "Space Grotesk", "Noto Sans", sans-serif;'
+    >
+      <h2 class="text-white text-2xl font-bold mb-6">All-in-One Level</h2>
+
+      <!-- Fullscreen button -->
+      <button id="fullscreen-btn" class="text-white bg-[#314d68] px-4 py-2 rounded mb-4">Toggle Fullscreen</button>
+
+      <!-- Bullseye level -->
+      <div id="circle" class="relative w-4/5 max-w-64 h-auto aspect-square rounded-full border-4 border-[#314d68] bg-[#101a23] flex items-center justify-center mb-8">
+        <!-- Concentric rings -->
+        <div class="absolute w-3/4 h-3/4 rounded-full border border-white/20"></div>
+        <div class="absolute w-1/2 h-1/2 rounded-full border border-white/30"></div>
+        <div class="absolute w-1/4 h-1/4 rounded-full border border-white/50"></div>
+        <!-- Center marker -->
+        <div class="absolute w-2 h-2 bg-white rounded-full"></div>
+        <!-- Ball -->
+        <div id="ball" class="absolute w-6 h-6 rounded-full bg-[#3d99f5] shadow-[0_0_10px_#3d99f5] border border-white/50"></div>
+      </div>
+
+      <!-- Horizontal level -->
+      <div class="w-4/5 max-w-72 mb-6">
+        <div class="flex justify-between mb-1">
+          <p class="text-white">Horizontal</p>
+          <p id="angle-horizontal" class="text-white">0°</p>
+        </div>
+        <div class="relative h-8 bg-[#314d68] rounded-full overflow-hidden flex items-center">
+          <div class="absolute left-1/2 w-[2px] h-full bg-white/40"></div>
+          <div
+            id="bubble-horizontal"
+            class="absolute w-6 h-6 rounded-full bg-[#3d99f5] shadow-[0_0_10px_#3d99f5] border border-white/50"
+            style="left: calc(50% - 12px);"
+          ></div>
+        </div>
+      </div>
+
+      <!-- Vertical level -->
+      <div class="flex flex-col items-center w-4/5 max-w-72">
+        <div class="flex justify-between w-24 mb-1">
+          <p class="text-white text-sm">Vertical</p>
+          <p id="angle-vertical" class="text-white text-sm">0°</p>
+        </div>
+        <div class="relative w-8 h-48 bg-[#314d68] rounded-full overflow-hidden flex justify-center">
+          <div class="absolute top-1/2 h-[2px] w-full bg-white/40"></div>
+          <div
+            id="bubble-vertical"
+            class="absolute w-6 h-6 rounded-full bg-[#3d99f5] shadow-[0_0_10px_#3d99f5] border border-white/50"
+            style="top: calc(50% - 12px);"
+          ></div>
+        </div>
+      </div>
+
+      <!-- Smoothing slider -->
+      <div class="w-4/5 max-w-72 mt-6">
+        <label for="smoothing" class="text-white">Smoothing Level: <span id="smoothing-value">5</span></label>
+        <input id="smoothing" type="range" min="1" max="20" value="5" class="w-full">
+      </div>
+    </div>
+
+    <script>
+      const ball = document.getElementById("ball");
+      const circle = document.getElementById("circle");
+
+      const angleHDisplay = document.getElementById("angle-horizontal");
+      const bubbleH = document.getElementById("bubble-horizontal");
+      const trackH = bubbleH.parentElement;
+
+      const angleVDisplay = document.getElementById("angle-vertical");
+      const bubbleV = document.getElementById("bubble-vertical");
+      const trackV = bubbleV.parentElement;
+
+      // Store recent readings for smoothing
+      let gammaHistory = [];
+      let betaHistory = [];
+      let smoothingCount = 5; // Dynamic smoothing
+
+      const smoothingSlider = document.getElementById('smoothing');
+      const smoothingValue = document.getElementById('smoothing-value');
+      smoothingSlider.addEventListener('input', (e) => {
+        smoothingCount = parseInt(e.target.value);
+        smoothingValue.textContent = smoothingCount;
+        gammaHistory = []; // Reset histories on change
+        betaHistory = [];
+      });
+
+      // Tolerance for "level" state
+      const tolerance = 1; // Degrees
+
+      // Audio context for feedback
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      let lastLevelState = false;
+
+      function smooth(value, history) {
+        history.push(value);
+        if (history.length > smoothingCount) history.shift();
+        return history.reduce((a, b) => a + b, 0) / history.length;
+      }
+
+      function updateLevel(event) {
+        let gamma = smooth(event.gamma || 0, gammaHistory); // left-right
+        let beta = smooth(event.beta || 0, betaHistory);    // front-back
+
+        gamma = Math.max(-45, Math.min(45, gamma));
+        beta = Math.max(-45, Math.min(45, beta));
+
+        // Check if level
+        const isLevel = Math.abs(gamma) < tolerance && Math.abs(beta) < tolerance;
+
+        // Visual feedback
+        ball.classList.toggle('bg-green-500', isLevel);
+        ball.classList.toggle('shadow-[0_0_10px_#22c55e]', isLevel); // Green glow
+        ball.classList.toggle('bg-[#3d99f5]', !isLevel);
+        ball.classList.toggle('shadow-[0_0_10px_#3d99f5]', !isLevel);
+
+        bubbleH.classList.toggle('bg-green-500', Math.abs(gamma) < tolerance);
+        bubbleH.classList.toggle('shadow-[0_0_10px_#22c55e]', Math.abs(gamma) < tolerance);
+        bubbleH.classList.toggle('bg-[#3d99f5]', Math.abs(gamma) >= tolerance);
+        bubbleH.classList.toggle('shadow-[0_0_10px_#3d99f5]', Math.abs(gamma) >= tolerance);
+
+        bubbleV.classList.toggle('bg-green-500', Math.abs(beta) < tolerance);
+        bubbleV.classList.toggle('shadow-[0_0_10px_#22c55e]', Math.abs(beta) < tolerance);
+        bubbleV.classList.toggle('bg-[#3d99f5]', Math.abs(beta) >= tolerance);
+        bubbleV.classList.toggle('shadow-[0_0_10px_#3d99f5]', Math.abs(beta) >= tolerance);
+
+        // Audio feedback
+        if (isLevel && !lastLevelState) {
+          const oscillator = audioCtx.createOscillator();
+          oscillator.type = 'sine';
+          oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // A4 note
+          oscillator.connect(audioCtx.destination);
+          oscillator.start();
+          setTimeout(() => oscillator.stop(), 200); // Short beep
+        }
+        lastLevelState = isLevel;
+
+        // ===== Bullseye =====
+        const circleRadius = circle.clientWidth / 2;
+        const ballRadius = ball.clientWidth / 2;
+        const maxMove = circleRadius - ballRadius - 4;
+        const offsetX = (gamma / 45) * maxMove;
+        const offsetY = (beta / 45) * maxMove;
+        const distance = Math.sqrt(offsetX ** 2 + offsetY ** 2);
+        if (distance > maxMove) {
+          const scale = maxMove / distance;
+          ball.style.transform = `translate(${offsetX * scale}px, ${offsetY * scale}px)`;
+        } else {
+          ball.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+        }
+
+        // ===== Horizontal =====
+        angleHDisplay.textContent = gamma.toFixed(1) + "°";
+        const trackW = trackH.clientWidth;
+        const bubbleW = bubbleH.clientWidth;
+        const maxX = (trackW - bubbleW) / 2;
+        const offsetHX = (gamma / 45) * maxX;
+        bubbleH.style.left = `calc(50% + ${offsetHX}px - ${bubbleW / 2}px)`;
+
+        // ===== Vertical =====
+        angleVDisplay.textContent = beta.toFixed(1) + "°";
+        const trackHgt = trackV.clientHeight;
+        const bubbleHgt = bubbleV.clientHeight;
+        const maxY = (trackHgt - bubbleHgt) / 2;
+        const offsetVY = (beta / 45) * maxY;
+        bubbleV.style.top = `calc(50% + ${offsetVY}px - ${bubbleHgt / 2}px)`;
+      }
+
+      // iOS permission handling with error messages
+      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+        document.body.addEventListener("click", () => {
+          DeviceOrientationEvent.requestPermission().then((response) => {
+            if (response === "granted") {
+              window.addEventListener("deviceorientation", updateLevel, true);
+            } else {
+              alert("Permission denied. The level won't respond to tilts.");
+            }
+          }).catch(() => {
+            alert("Unable to access device orientation. Try a different browser or device.");
+          });
+        });
+      } else if (window.DeviceOrientationEvent) {
+        window.addEventListener("deviceorientation", updateLevel, true);
+      } else {
+        alert("Your device or browser doesn't support orientation sensors.");
+      }
+
+      // Fullscreen toggle
+      const fullscreenBtn = document.getElementById('fullscreen-btn');
+      fullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+        } else {
+          document.exitFullscreen();
+        }
+      });
+    </script>
+  </body>
+</html>
